@@ -1,0 +1,40 @@
+{
+  "irc": {"id": "irc-main", "endpoint": "ircs://irc.example.test:6697"},
+  "bots": [
+    {
+      "id": "research-bot",
+      "weechat": {
+        "id": "weechat-research",
+        "server_id": "irc-main",
+        "nick": "research-bot",
+        "mcp_endpoint": "http://weechat-research.example.test:8000/mcp"
+      },
+      "harness": {
+        "id": "harness-research",
+        "user_id": "user-example",
+        "weechat_id": "weechat-research",
+        "sessions": [
+          {
+            "id": "session-example",
+            "harness_id": "harness-research",
+            "channel": {"server_id": "irc-main", "name": "#research"},
+            "context_ref": "contexts/research/session-example.json",
+            "share_url": "https://sessions.example.test/session-example",
+            "mcp": {
+              "id": "mcp-example",
+              "endpoint": "http://mcp.example.test:8000/mcp",
+              "connectors": [
+                {
+                  "id": "connector-example",
+                  "server_id": "irc-main",
+                  "nick": "research-connector",
+                  "mcp_endpoint": "http://connector.example.test:8000/mcp"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

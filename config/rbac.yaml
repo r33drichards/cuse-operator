@@ -1,0 +1,37 @@
+# Provisional API group; no domain ownership is implied.
+# Use an existing namespace, change all namespace values together, and run:
+# kopf run --standalone --namespace=default -m cuse_operator.operator
+# One replica only: no peering, cluster-wide watches, event posting or provisioning.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cuse-operator
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cuse-operator
+  namespace: default
+rules:
+  - apiGroups: [cuse.io]
+    resources: [architectures]
+    # patch is required for Kopf progress/diff-base annotations.
+    verbs: [get, list, watch, patch]
+  - apiGroups: [cuse.io]
+    resources: [architectures/status]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cuse-operator
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: cuse-operator
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cuse-operator
