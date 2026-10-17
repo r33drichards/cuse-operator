@@ -1,142 +1,175 @@
 # Canonical IRC/MCP operator: design and plan
 
-2026-10-17. This document reconciles the [original design gist](https://gist.github.com/r33drichards/4da908ee769df274a16fa76ea1e1b1ae)
-with the user's revised canonical Python base types. [The original design text](history/original-design-and-plan.md)
-is retained for provenance; its speculative resource APIs do not override this contract.
-This is an initial data/validation scaffold, not a deployed resource manager.
+Updated 2026-10-17 to make Bot, Session, PiHarness, MCPClient, Connector and WeeChat
+independent namespaced CRDs, as requested. This supersedes the initial aggregate-only
+API choice. [The original gist](https://gist.github.com/r33drichards/4da908ee769df274a16fa76ea1e1b1ae)
+and [preserved source design](history/original-design-and-plan.md) provide history;
+the canonical Python dataclasses and the explicit mappings below are the current contract.
+This remains a validation-only scaffold, not a provisioning system.
 
 ## 1. Design
 
-### 1.1 Canonical topology
+### 1.1 Domain model versus Kubernetes API
+
+[models.py](../src/cuse_operator/models.py) preserves all nine frozen/slotted stdlib
+dataclasses and UserId/SessionId NewTypes unchanged. A domain Architecture contains
+embedded Python values. Kubernetes resources instead have independent metadata,
+spec and status and connect by resource references; they do not duplicate that graph.
+Connector's canonical domain fields remain id, server_id, nick, mcp_endpoint. In its
+Kubernetes envelope only server_id becomes serverRef; resolving that reference yields
+the canonical server ID. ChannelRef remains an inline value, never a CRD.
+
+The provisional API is `cuse.io/v1alpha1`; no ownership of that domain is asserted.
+Choose an owned group before a production release. All resources are namespaced.
+
+| Kind | Spec fields | Reference target |
+|---|---|---|
+| IRCServer | id, endpoint | None; shared InspIRCd intent |
+| WeeChat | id, serverRef, nick, mcp_endpoint | IRCServer |
+| Connector | id, serverRef, nick, mcp_endpoint | IRCServer |
+| MCPClient | id, endpoint, connectorRefs (default []) | Connector collection |
+| PiHarness | id, user_id, weechatRef | WeeChat |
+| Session | id, harnessRef, channel {serverRef, name}, context_ref, share_url, mcpClientRef | PiHarness, IRCServer, MCPClient |
+| Bot | id, weechatRef, harnessRef | WeeChat, PiHarness |
+| Architecture | Existing embedded canonical Architecture | Compatibility-only aggregate |
+
+IRCServer is the minimal additional shared CRD required to avoid repeating server
+configuration in WeeChat, Connector and Session. Session owns the forward harnessRef;
+PiHarness does not also duplicate a sessions array. Sessions can be selected by this
+reference when assembling a domain snapshot. MCPClient owns the connectorRefs list;
+connectors are separate reusable resources. Bot links existing WeeChat and harness
+resources. These are references, not lifecycle ownership or garbage-collection edges.
 
 ```mermaid
 flowchart TD
-  A[Architecture] --> I[IRCServer: InspIRCd endpoint]
-  A --> B[Bot collection]
-  B --> W[WeeChat: server_id, nick, mcp_endpoint]
-  B --> P[PiHarness: user_id, weechat_id]
-  P --> S[Session collection]
-  S --> C[ChannelRef: server_id and name]
-  S --> R[context_ref and share_url]
-  S --> M[MCPClient: endpoint]
-  M --> X[Connector collection: server_id, nick, mcp_endpoint]
+  B[Bot] -->|weechatRef| W[WeeChat]
+  B -->|harnessRef| P[PiHarness]
+  P -->|weechatRef| W
+  W -->|serverRef| I[IRCServer]
+  S[Session] -->|harnessRef| P
+  S -->|channel.serverRef| I
+  S -->|mcpClientRef| M[MCPClient]
+  M -->|connectorRefs| C[Connector]
+  C -->|serverRef| I
 ```
 
-The exact domain contract is [models.py](../src/cuse_operator/models.py): UserId and
-SessionId are NewType aliases over strings; all nine dataclasses are frozen/slotted.
-Tuple collections default to empty only where specified. Connector remains exactly
-`id, server_id, nick, mcp_endpoint`; no invented provider discriminant or tool API is
-added. These objects express desired relationships, not Kubernetes metadata, runtime
-handles or upstream provider schemas. IRCServer represents the intended InspIRCd
-service, but its endpoint is data and does not create a deployment today.
+### 1.2 Reference and identity policy
 
-### 1.2 Ownership and resource envelope
+Every reference is `{name, uid?}`. It resolves in the referencing resource's namespace;
+namespace fields in references are rejected by the local validator. There is no
+cross-namespace fallback. Optional UID pins detect replacement under the same name;
+without a pin, re-creating the named dependency intentionally rebinds the reference.
+Names are Kubernetes resource names; id remains the canonical application ID, which
+is not restricted to DNS syntax.
 
-The first resource is one namespaced aggregate `Architecture` with canonical data
-under `spec`. The full graph can be validated atomically without resolving mutable
-cross-resource Kubernetes references. Embedded objects are not independently managed
-CRDs. This avoids two authorities for the same sessions/connectors while establishing
-the requested data foundation. Splitting the aggregate later requires a reviewed
-version/migration and identity policy, not a silent reinterpretation of these types.
+Same-kind domain IDs must be unique within a namespace. This is a deliberate explicit
+API-level uniqueness scope for independently managed objects; the legacy aggregate's
+existing nested ID scopes are unchanged. Different kinds or namespaces may use the
+same ID. Duplicate identities block a successful validation result for conflicting
+objects and their dependents. Duplicate connector references are invalid. User IDs may
+repeat across PiHarness resources. No reverse reference is required, so resources can
+be created independently and unused resources are valid if their own references resolve.
 
-The provisional API group is `cuse.io`, version `v1alpha1`; no ownership of that domain
-is asserted. Choose an owned domain before production use. Kubernetes names/UIDs and
-namespace are envelope metadata, never substitutes for domain IDs. Domain IDs are
-not forced into DNS-label syntax. Arrays retain order and are atomic under default
-Kubernetes list semantics; list-map merge policies require a future API decision.
+A Bot's harness must reference the same WeeChat it links. A Session's channel server
+must agree with its harness's WeeChat and all connectors in its MCPClient. All referenced
+specs are validated transitively. Missing, deleting or UID-mismatched dependencies
+cannot be treated as ready. Deletion never cascades through these references: no
+ownerReferences, external teardown or finalizers are created. Dependents are revalidated
+and become Blocked or Invalid rather than being deleted.
 
-`status` contains only phase (`Valid`/`Invalid`), observedGeneration, reason and generic
-message. No messages, transcripts, endpoints, submitted values or exception details
-are copied into it. No Ready claim is made. Kubernetes spec and Kopf diff-base
-annotations are not secret stores. Context storage and share URLs must remain
-non-credential-bearing references, with actual access control outside this model.
+### 1.3 Validation and status
 
-### 1.3 Validation layers and scope
+Strict Python validation rejects unknown/missing fields and type coercion, including
+malformed references and nested specs. Scalar/domain policy reuses canonical validation:
+nonempty IDs, no surrounding whitespace/controls, minimal IRC channel/nickname rules,
+absolute hierarchical endpoint/share URLs, and non-secret context storage references.
+Custom URL schemes and internal hosts are accepted; reachability/TLS policy remains
+outside this scaffold. Known userinfo/credential parameters are rejected, but no
+syntax checker can detect arbitrary opaque secrets; callers must never provide them.
 
-1. Strict codec: rejects unknown/missing fields, scalar coercion, wrong nested types
-   and non-array JSON collections. Produces tuple collections and validates semantics.
-2. Domain validation: also checks objects built directly with dataclass constructors,
-   which intentionally do not execute validators or I/O.
-3. Structural CRD: generated from type hints, explicit properties/items/required and
-   defaults; checked for schema drift. Kubernetes prunes unknown schema fields in its
-   normal path. The Python codec rejects them before submission. Strict server field
-   validation may reject extras, but this scaffold does not promise universal rejection.
-4. Kopf handler: validates persisted desired state and records sanitized status.
-   Semantic errors can therefore be persisted today. Admission hardening is issue #4.
+The structural CRD schema specifies every field and item shape. Kubernetes ordinarily
+prunes unknown fields; local validation rejects extras before submission. Semantic
+validation is currently post-persistence, not admission enforcement. Server-side
+strict field validation may reject extras, but must not be assumed universally.
 
-IDs are nonempty, have no surrounding whitespace or controls. Bot, WeeChat and harness
-IDs are unique within an Architecture; session IDs within a harness; Connector IDs
-within one MCP client. User IDs may repeat. Each Session owns its MCP client; client
-IDs are not forced globally unique. References must agree with containing objects:
-WeeChat and connectors point to the architecture IRC server, harness points to its
-Bot's WeeChat, sessions point to their harness and the same server via ChannelRef.
+Each split resource has independent status with phase Valid/Invalid/Blocked,
+observedGeneration, reason and generic message. Valid means configuration/reference
+validation only, not provider readiness. Status never echoes submitted values,
+endpoints, secrets or exception text. Architecture retains its original two-state
+status and serialized spec unchanged.
 
-Channels require a standard IRC prefix and reject protocol separators/controls.
-Nicknames reject whitespace/controls; server-specific nickname limits, CASEMAPPING,
-channel length and collisions are deferred until server capabilities are known.
-Endpoints and share_url are absolute hierarchical URLs with a host. Custom schemes
-and internal hostnames are allowed; reachability and TLS policy are provider concerns.
-context_ref may be an opaque storage key/path or URI. Known credential parameters,
-userinfo, encoded userinfo, malformed ports and URL whitespace/control/backslashes
-are rejected. Opaque secret detection is inherently incomplete; callers must never
-supply signed/bearer URLs or secrets hidden in paths, fragments or storage keys.
+### 1.4 Reconciliation and dependency updates
 
-### 1.4 Reconciliation boundary
+Architecture retains its original create/update/resume validation handler and annotation
+persistence. Split resources use low-level watches; a meaningful resource event triggers
+a fresh namespace-scoped inventory of the split kinds and revalidates that namespace.
+Dependency deletion, invalidation, ID collisions and later repairs are consequently
+reflected in dependent statuses. Status-only changes are ignored to avoid loops.
+A periodic resync retries transient failures and missed work. The implementation is a
+validation scaffold with namespace-wide scans, not a production-scale indexed controller.
 
-The pure `reconcile(spec, generation)` function is deterministic, validation-only and
-has no external side effects. Kopf create/update/resume adapters patch validation
-status. No delete handler/finalizer is registered and no infrastructure is provisioned.
-Configuration errors become Invalid, not retry storms; future provider errors must be
-classified separately (transient, terminal, uncertain outcome).
+Status patches carry resource identity/version preconditions to avoid overwriting a
+newer spec or a replacement object's status. Concurrent namespace changes are eventually
+consistent; a list across several kinds is not an atomic Kubernetes snapshot. Watch and
+resync repair temporary observations. API failures do not mean dependencies are absent.
+The controller does not provision workloads, probe endpoints, start sessions, configure
+connectors or change external providers.
 
-Kopf progress and diff-base persistence use annotations. Event posting and namespace/
-CRD scanning are disabled. The sample Role permits only get/list/watch/patch of this
-CR and patch of status in one namespace. Run one standalone replica with explicit
-namespace selection; this is not HA/leader election. Provider credentials, Secret reads,
-workload mutations and broad cluster permissions are absent. Schema installation is
-an administrative step outside runtime RBAC. Initial discovery relies on standard authenticated API discovery access. No live-cluster integration was run for
-this scaffold; offline JSON Schema tests do not prove API-server or RBAC compatibility.
+Run one standalone replica scoped to an explicit namespace. Runtime RBAC permits only
+get/list/watch of the CRDs, status patches, and Architecture annotation patches needed
+by Kopf. No Secret, workload, cluster-admin, peering or external-provider privileges.
+Initial discovery relies on standard authenticated discovery permissions. CRD installation
+is a separate administrative action. No live cluster or RBAC test has been performed.
 
-### 1.5 Deferred operational architecture
+### 1.5 Backward compatibility and migration
 
-The historical design's durable routing, recovery and tenant-isolation concerns remain
-useful requirements, but must be mapped to these canonical objects before implementation.
-Kubernetes reconciles infrastructure intent; it is not the conversation queue. Later
-Pi/MCP adapters own durable session mapping and context storage; a separately reviewed
-Cloudflare Worker/Durable Object adapter may route authenticated events. Transport
-identity, model execution, persistence and provider ownership require explicit contracts.
+`build_crd()` and `config/crd.json` still describe the original Architecture CRD.
+`build_crds()` / `--all` and `config/crds.json` include Architecture plus seven independent
+kinds. Existing Architecture resources keep their payload and validation behavior.
+Upgrade installations by adding all seven CRDs from config/crds.json and updating
+config/rbac.yaml before starting this operator version. The runtime watches all kinds.
+They are treated as aggregate/import compatibility data only: the operator does not
+automatically create, mutate or delete split resources from them. There is therefore
+no second controller authority over independently managed resources.
 
-Experimental MCP Events must be capability/version gated with reconnect/gap handling,
-durable intake/outbox receipts and fallback; subscription notifications alone are not
-durable delivery. No experimental transport is implemented or claimed stable here.
-Optional computer-use integration must not manufacture Desktop or ToolBackend base
-types, and no coordinator is started by this scaffold. Any future provider extension,
-retention/destruction policy, shared resource control or production deployment receives
-separate review and authorization.
+For migration, choose Kubernetes names for domain IDs, create IRCServer/WeeChat/Connector,
+then MCPClient/PiHarness, then Session/Bot, and optionally pin resolved UIDs. The example
+List is a reference template; no automatic migration or export command is promised.
+Review any overlapping IDs and ownership choices before applying. Keep the old aggregate
+until the split configuration has been independently validated; deletion is a user choice.
+
+### 1.6 Limits before production
+
+- Semantic admission, size bounds, Kubernetes installation and RBAC integration tests
+  remain issue #4. Architecture's diff-base annotations can exceed annotation limits
+  for large specs; do not use unbounded aggregates in production.
+- Split resources need production-scale indexes, load testing, concurrency/fault testing
+  and an explicit leadership strategy before multiple replicas.
+- No endpoint health, workload management, secret handling or external execution exists.
+- Kubernetes specs/status/annotations are not transcript or credential storage.
+- Experimental MCP Events require version/capability negotiation and durable delivery;
+  notifications alone are not a message queue or proven production protocol.
 
 ## 2. Plan
 
-Each issue includes scope, dependencies and concrete acceptance criteria:
-
-| Stage | Issue | Outcome |
+| Work | Tracking | Outcome |
 |---|---|---|
-| Data foundation | [#1](https://github.com/r33drichards/cuse-operator/issues/1) | Canonical models, strict codec, semantic tests |
-| API adapter | [#2](https://github.com/r33drichards/cuse-operator/issues/2) | Structural CRD and safe Kopf validation/status |
-| Verification | [#3](https://github.com/r33drichards/cuse-operator/issues/3) | Docs, example, offline CI and publication verification |
-| Admission | [#4](https://github.com/r33drichards/cuse-operator/issues/4) | API-server semantic protection and version policy |
-| Kubernetes providers | [#5](https://github.com/r33drichards/cuse-operator/issues/5) | Pure workload planning, retention, idempotent adapters |
-| Pi/MCP runtime | [#6](https://github.com/r33drichards/cuse-operator/issues/6) | Durable harness/session mapping and scoped tools |
+| Canonical domain data | [#1](https://github.com/r33drichards/cuse-operator/issues/1) | Frozen types, strict codec and validation |
+| Original aggregate scaffold | [#2](https://github.com/r33drichards/cuse-operator/issues/2) | Backward-compatible Architecture API |
+| Initial docs and CI | [#3](https://github.com/r33drichards/cuse-operator/issues/3) | Verified scaffold publication |
+| Split resource API | [#9](https://github.com/r33drichards/cuse-operator/issues/9) | Six requested kinds, shared IRCServer, references and watches |
+| Admission/version hardening | [#4](https://github.com/r33drichards/cuse-operator/issues/4) | API-server semantic protection and integration verification |
+| Kubernetes providers | [#5](https://github.com/r33drichards/cuse-operator/issues/5) | Pure workload plans and idempotent provider adapters |
+| Pi/MCP runtime | [#6](https://github.com/r33drichards/cuse-operator/issues/6) | Durable session mappings and scoped tools |
 | Cloudflare delivery | [#7](https://github.com/r33drichards/cuse-operator/issues/7) | Authenticated routing and durable inbox/outbox |
-| MCP Events experiment | [#8](https://github.com/r33drichards/cuse-operator/issues/8) | Versioned capability/failure testing and fallback |
+| MCP Events experiment | [#8](https://github.com/r33drichards/cuse-operator/issues/8) | Versioned capabilities, failure tests and fallback |
 
-Stages 1–3 are the requested scaffold. Stages 4–8 are deferred work; issue creation is
-not approval for live deployments, credential/access changes or destructive operations.
-Before any live test, agree on a disposable namespace/cluster, installation permissions,
-resource budgets and cleanup. Never use production as a schema-validation shortcut.
+Later provider/runtime stages remain deferred. Issue tracking is not approval for
+production edits, resource deletion, new access grants or deployments. Before a live
+test agree on a disposable namespace/cluster, permissions, budgets and cleanup.
 
 ### References
 
 - [Kopf handlers](https://docs.kopf.dev/en/stable/handlers/)
-- [Kopf configuration and persistence](https://docs.kopf.dev/en/stable/configuration/)
+- [Kopf configuration](https://docs.kopf.dev/en/stable/configuration/)
 - [Kubernetes CustomResourceDefinitions](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/)
-- [Historical design provenance](https://gist.github.com/r33drichards/4da908ee769df274a16fa76ea1e1b1ae)

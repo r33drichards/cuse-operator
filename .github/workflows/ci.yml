@@ -17,3 +17,4 @@ jobs:
       - run: python -m pytest -q
       - run: python -m compileall -q src
       - run: cuse-validate examples/architecture.json
+      - run: cuse-validate examples/resources.json

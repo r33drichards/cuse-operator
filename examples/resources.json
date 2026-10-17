@@ -1,0 +1,13 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {"apiVersion":"cuse.io/v1alpha1","kind":"IRCServer","metadata":{"name":"irc","namespace":"default"},"spec":{"id":"irc-demo","endpoint":"ircs://irc.example.test:6697"}},
+    {"apiVersion":"cuse.io/v1alpha1","kind":"WeeChat","metadata":{"name":"weechat","namespace":"default"},"spec":{"id":"weechat-demo","serverRef":{"name":"irc"},"nick":"example-bot","mcp_endpoint":"http://weechat:8080/mcp"}},
+    {"apiVersion":"cuse.io/v1alpha1","kind":"Connector","metadata":{"name":"connector","namespace":"default"},"spec":{"id":"connector-demo","serverRef":{"name":"irc"},"nick":"example-tools","mcp_endpoint":"http://connector:8080/mcp"}},
+    {"apiVersion":"cuse.io/v1alpha1","kind":"MCPClient","metadata":{"name":"mcp-client","namespace":"default"},"spec":{"id":"mcp-demo","endpoint":"http://mcp:8080","connectorRefs":[{"name":"connector"}]}},
+    {"apiVersion":"cuse.io/v1alpha1","kind":"PiHarness","metadata":{"name":"harness","namespace":"default"},"spec":{"id":"harness-demo","user_id":"user-demo","weechatRef":{"name":"weechat"}}},
+    {"apiVersion":"cuse.io/v1alpha1","kind":"Session","metadata":{"name":"session","namespace":"default"},"spec":{"id":"session-demo","harnessRef":{"name":"harness"},"channel":{"serverRef":{"name":"irc"},"name":"#example"},"context_ref":"s3://example-contexts/session.json","share_url":"https://example.test/sessions/demo","mcpClientRef":{"name":"mcp-client"}}},
+    {"apiVersion":"cuse.io/v1alpha1","kind":"Bot","metadata":{"name":"bot","namespace":"default"},"spec":{"id":"bot-demo","weechatRef":{"name":"weechat"},"harnessRef":{"name":"harness"}}}
+  ]
+}

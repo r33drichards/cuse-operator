@@ -5,6 +5,7 @@ Unknown fields are pruned by Kubernetes; the Python codec rejects them before
 submission. Do not add additionalProperties:false beside properties: that is
 not an accepted CRD schema shape. Semantic links are checked by the reconciler.
 """
+from copy import deepcopy
 from dataclasses import MISSING, fields, is_dataclass
 import argparse
 import json
@@ -105,11 +106,54 @@ def build_crd():
     }
 
 
+def structural_schema(schema):
+    """Kubernetes prunes unknown fields; disallow additionalProperties:false."""
+    if isinstance(schema, dict):
+        return {key: structural_schema(value) for key, value in schema.items()
+                if key != "additionalProperties"}
+    if isinstance(schema, list):
+        return [structural_schema(value) for value in schema]
+    return schema
+
+
+def resource_status_schema():
+    result = status_schema()
+    result["properties"]["phase"]["enum"].append("Blocked")
+    result["properties"]["reason"]["enum"].extend([
+        "MissingDependency", "ReferenceMismatch", "DuplicateIdentity",
+    ])
+    return result
+
+
+def build_resource_crd(kind):
+    """Build one independently addressable, namespaced resource definition."""
+    from .resources import PLURALS, RESOURCE_SPECS
+
+    result = deepcopy(build_crd())
+    plural = PLURALS[kind]
+    result["metadata"]["name"] = f"{plural}.{GROUP}"
+    result["spec"]["names"] = {"plural": plural, "singular": kind.lower(), "kind": kind}
+    schema = result["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
+    schema["properties"]["spec"] = structural_schema(RESOURCE_SPECS[kind])
+    schema["properties"]["status"] = resource_status_schema()
+    return result
+
+
+def build_crds():
+    """Keep the aggregate compatibility API alongside seven independent kinds."""
+    from .resources import PLURALS
+
+    return {"apiVersion": "v1", "kind": "List", "items": [
+        build_crd(), *(build_resource_crd(kind) for kind in PLURALS),
+    ]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="write JSON to this file instead of stdout")
+    parser.add_argument("--all", action="store_true", help="include all independent CRDs")
     args = parser.parse_args()
-    document = json.dumps(build_crd(), indent=2) + "\n"
+    document = json.dumps(build_crds() if args.all else build_crd(), indent=2) + "\n"
     if args.output:
         args.output.write_text(document, encoding="utf-8")
     else:

@@ -80,7 +80,19 @@ def test_rbac_matches_validation_only_mode():
     role = documents[1]
     assert role["rules"] == [
         {"apiGroups": ["cuse.io"], "resources": ["architectures"], "verbs": ["get", "list", "watch", "patch"]},
-        {"apiGroups": ["cuse.io"], "resources": ["architectures/status"], "verbs": ["patch"]},
+        {
+            "apiGroups": ["cuse.io"],
+            "resources": ["ircservers", "weechats", "connectors", "mcpclients",
+                          "piharnesses", "sessions", "bots"],
+            "verbs": ["get", "list", "watch"],
+        },
+        {
+            "apiGroups": ["cuse.io"],
+            "resources": ["architectures/status", "ircservers/status", "weechats/status",
+                          "connectors/status", "mcpclients/status", "piharnesses/status",
+                          "sessions/status", "bots/status"],
+            "verbs": ["patch"],
+        },
     ]
     assert all(document["metadata"]["namespace"] == "default" for document in documents)
     assert documents[2]["subjects"][0]["name"] == documents[0]["metadata"]["name"]

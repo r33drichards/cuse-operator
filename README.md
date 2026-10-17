@@ -5,9 +5,10 @@ sessions and session-scoped MCP clients. The canonical data model uses frozen,
 slotted stdlib dataclasses. It is deliberately separate from Kubernetes resource
 metadata and status.
 
-**Implemented:** strict codecs, structural and semantic validation, a generated
-namespaced aggregate Architecture CRD, validation-only create/update/resume
-handlers, sanitized status, minimal sample RBAC, offline CLI and regression tests.
+**Implemented:** strict codecs, structural and semantic validation, independent namespaced Bot, Session, PiHarness, MCPClient, Connector, WeeChat
+and shared IRCServer CRDs, reference validation and dependency watches, sanitized
+status, minimal RBAC, offline CLI and regression tests. The original Architecture
+aggregate remains supported unchanged.
 **Deferred:** provisioning, network health checks, admission webhooks, credentials,
 live deployment, Cloudflare/desktop/provider integration and experimental MCP Events.
 A `Valid` status does not mean running, connected or ready.
@@ -22,11 +23,14 @@ ruff check .
 python -m pytest -q
 python -m compileall -q src
 cuse-validate examples/architecture.json
-python -m cuse_operator.schema --output config/crd.json
+cuse-validate examples/resources.json
+python -m cuse_operator.schema --all --output config/crds.json
 ```
 
 The example is a bare domain Architecture; the CLI also accepts an Architecture
-Kubernetes resource envelope with the domain object under spec. Validation is offline. No tests need cluster credentials.
+Kubernetes resource envelope with the domain object under spec.
+`examples/resources.json` shows all seven independent resources in a Kubernetes List;
+the CLI validates their reference graph without contacting a cluster. Validation is offline. No tests need cluster credentials.
 
 ## Read first
 
@@ -37,10 +41,14 @@ Kubernetes resource envelope with the domain object under spec. Validation is of
 
 ## Kubernetes boundary
 
-`config/crd.json` defines `Architecture` under provisional `cuse.io/v1alpha1`.
-The API group makes no domain-ownership claim: choose an owned group before a
-production API release. Its `spec` is the canonical Architecture object;
-`metadata` and typed validation `status` stay outside the domain model.
+`config/crds.json` contains all eight CRDs under provisional `cuse.io/v1alpha1`.
+`config/crd.json` retains the original Architecture definition for compatibility.
+The API group makes no domain-ownership claim: choose an owned group before release.
+Split-resource specs use same-namespace name references with optional UID pins;
+ChannelRef stays inline. See [the API mapping](docs/design-and-plan.md) for every field.
+Existing Architecture resources never automatically create or overwrite split resources.
+When upgrading an installation, install all definitions from config/crds.json and update
+config/rbac.yaml before starting this version; the split watcher requires all seven kinds.
 
 The scaffold can be run, **only in an explicitly approved test namespace**, with:
 
@@ -49,6 +57,7 @@ kopf run --standalone --namespace=default -m cuse_operator.operator
 ```
 
 This command starts an active watcher and writes validation status/Kopf annotations.
+It also lists split resources and patches dependent statuses after changes/deletions.
 It is not a no-write cluster dry-run. The pure `reconcile` function and CLI are the
 offline dry-run surfaces. Installation and cluster execution are not performed by
 this repository setup. Sample RBAC covers one namespace and one standalone operator;

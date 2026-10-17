@@ -19,7 +19,10 @@ rules:
     # patch is required for Kopf progress/diff-base annotations.
     verbs: [get, list, watch, patch]
   - apiGroups: [cuse.io]
-    resources: [architectures/status]
+    resources: [ircservers, weechats, connectors, mcpclients, piharnesses, sessions, bots]
+    verbs: [get, list, watch]
+  - apiGroups: [cuse.io]
+    resources: [architectures/status, ircservers/status, weechats/status, connectors/status, mcpclients/status, piharnesses/status, sessions/status, bots/status]
     verbs: [patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

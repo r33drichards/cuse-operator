@@ -1,0 +1,1230 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "architectures.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "architectures",
+          "singular": "architecture",
+          "kind": "Architecture"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "irc": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "endpoint": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "endpoint"
+                        ]
+                      },
+                      "bots": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "weechat": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "server_id": {
+                                  "type": "string"
+                                },
+                                "nick": {
+                                  "type": "string"
+                                },
+                                "mcp_endpoint": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "server_id",
+                                "nick",
+                                "mcp_endpoint"
+                              ]
+                            },
+                            "harness": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "user_id": {
+                                  "type": "string"
+                                },
+                                "weechat_id": {
+                                  "type": "string"
+                                },
+                                "sessions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "harness_id": {
+                                        "type": "string"
+                                      },
+                                      "channel": {
+                                        "type": "object",
+                                        "properties": {
+                                          "server_id": {
+                                            "type": "string"
+                                          },
+                                          "name": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "server_id",
+                                          "name"
+                                        ]
+                                      },
+                                      "context_ref": {
+                                        "type": "string"
+                                      },
+                                      "share_url": {
+                                        "type": "string"
+                                      },
+                                      "mcp": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "endpoint": {
+                                            "type": "string"
+                                          },
+                                          "connectors": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "server_id": {
+                                                  "type": "string"
+                                                },
+                                                "nick": {
+                                                  "type": "string"
+                                                },
+                                                "mcp_endpoint": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id",
+                                                "server_id",
+                                                "nick",
+                                                "mcp_endpoint"
+                                              ]
+                                            },
+                                            "default": []
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "endpoint"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "harness_id",
+                                      "channel",
+                                      "context_ref",
+                                      "share_url",
+                                      "mcp"
+                                    ]
+                                  },
+                                  "default": []
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "user_id",
+                                "weechat_id"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "weechat",
+                            "harness"
+                          ]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "irc"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "ircservers.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "ircservers",
+          "singular": "ircserver",
+          "kind": "IRCServer"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "endpoint": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "endpoint"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "weechats.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "weechats",
+          "singular": "weechat",
+          "kind": "WeeChat"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "serverRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      },
+                      "nick": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "mcp_endpoint": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "serverRef",
+                      "nick",
+                      "mcp_endpoint"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "connectors.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "connectors",
+          "singular": "connector",
+          "kind": "Connector"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "serverRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      },
+                      "nick": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "mcp_endpoint": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "serverRef",
+                      "nick",
+                      "mcp_endpoint"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "mcpclients.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "mcpclients",
+          "singular": "mcpclient",
+          "kind": "MCPClient"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "endpoint": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "connectorRefs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 253,
+                              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                            },
+                            "uid": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "endpoint"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "piharnesses.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "piharnesses",
+          "singular": "piharness",
+          "kind": "PiHarness"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "user_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "weechatRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "user_id",
+                      "weechatRef"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "sessions.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "sessions",
+          "singular": "session",
+          "kind": "Session"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "harnessRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      },
+                      "channel": {
+                        "type": "object",
+                        "properties": {
+                          "serverRef": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 253,
+                                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                              },
+                              "uid": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ]
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "serverRef",
+                          "name"
+                        ]
+                      },
+                      "context_ref": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "share_url": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "mcpClientRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "harnessRef",
+                      "channel",
+                      "context_ref",
+                      "share_url",
+                      "mcpClientRef"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "bots.cuse.io"
+      },
+      "spec": {
+        "group": "cuse.io",
+        "scope": "Namespaced",
+        "names": {
+          "plural": "bots",
+          "singular": "bot",
+          "kind": "Bot"
+        },
+        "versions": [
+          {
+            "name": "v1alpha1",
+            "served": true,
+            "storage": true,
+            "subresources": {
+              "status": {}
+            },
+            "additionalPrinterColumns": [
+              {
+                "name": "Validation",
+                "type": "string",
+                "jsonPath": ".status.phase"
+              },
+              {
+                "name": "Observed",
+                "type": "integer",
+                "jsonPath": ".status.observedGeneration"
+              }
+            ],
+            "schema": {
+              "openAPIV3Schema": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "spec": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "weechatRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      },
+                      "harnessRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "weechatRef",
+                      "harnessRef"
+                    ]
+                  },
+                  "status": {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "Valid",
+                          "Invalid",
+                          "Blocked"
+                        ]
+                      },
+                      "observedGeneration": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "Validated",
+                          "ValidationFailed",
+                          "MissingDependency",
+                          "ReferenceMismatch",
+                          "DuplicateIdentity"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "observedGeneration",
+                      "reason",
+                      "message"
+                    ]
+                  }
+                },
+                "required": [
+                  "spec"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
