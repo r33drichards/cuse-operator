@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import kopf
 
 from cuse_operator.operator import DEPENDENCY_WATCHES, DependencyValidator
-from cuse_operator.resources import PLURALS
+from cuse_operator.operator import ALL_PLURALS as PLURALS
 
 
 def resource(kind, name, spec, namespace="default", uid=None):
@@ -144,7 +144,7 @@ def test_all_kinds_have_raw_watches_without_finalizers():
     registry = kopf.get_default_registry()
     watchers = registry._watching._handlers
     assert {str(handler.id) for handler in watchers} >= {
-        f"validate-{plural}" for plural in PLURALS.values()}
+        f"reconcile-{plural}" for plural in PLURALS.values()}
     assert not registry._spawning._handlers
 
 

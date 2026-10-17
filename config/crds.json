@@ -235,11 +235,34 @@
                         "type": "string",
                         "enum": [
                           "Validated",
-                          "ValidationFailed"
+                          "ValidationFailed",
+                          "Retained"
                         ]
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -343,6 +366,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -350,6 +374,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -477,6 +523,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -484,6 +531,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -611,6 +680,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -618,6 +688,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -743,6 +835,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -750,6 +843,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -872,6 +987,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -879,6 +995,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -1057,6 +1195,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -1064,6 +1203,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [
@@ -1200,6 +1361,7 @@
                         "enum": [
                           "Validated",
                           "ValidationFailed",
+                          "Retained",
                           "MissingDependency",
                           "ReferenceMismatch",
                           "DuplicateIdentity"
@@ -1207,6 +1369,28 @@
                       },
                       "message": {
                         "type": "string"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "reconciliationReason": {
+                        "type": "string"
+                      },
+                      "desiredRevision": {
+                        "type": "string"
+                      },
+                      "observedRevision": {
+                        "type": "string"
+                      },
+                      "lastAction": {
+                        "type": "string",
+                        "enum": [
+                          "None",
+                          "Create",
+                          "Update",
+                          "NoOp",
+                          "Retain"
+                        ]
                       }
                     },
                     "required": [

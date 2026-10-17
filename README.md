@@ -1,17 +1,19 @@
 # cuse-operator
 
-A Python 3.12 **validation-first Kopf scaffold** for IRC, WeeChat, Pi harnesses,
+A Python 3.12 **Kopf controller scaffold** for IRC, WeeChat, Pi harnesses,
 sessions and session-scoped MCP clients. The canonical data model uses frozen,
 slotted stdlib dataclasses. It is deliberately separate from Kubernetes resource
 metadata and status.
 
 **Implemented:** strict codecs, structural and semantic validation, independent namespaced Bot, Session, PiHarness, MCPClient, Connector, WeeChat
 and shared IRCServer CRDs, reference validation and dependency watches, sanitized
-status, minimal RBAC, offline CLI and regression tests. The original Architecture
+status, dedicated desired-state controllers for all eight CRDs, explicit provider
+interfaces, idempotent in-memory convergence tests, minimal RBAC and offline CLI. The original Architecture
 aggregate remains supported unchanged.
-**Deferred:** provisioning, network health checks, admission webhooks, credentials,
+**Deferred:** production provider adapters, network health checks, admission webhooks, credentials,
 live deployment, Cloudflare/desktop/provider integration and experimental MCP Events.
-A `Valid` status does not mean running, connected or ready.
+A `Valid` status does not mean running, connected or ready. The default provider reports
+`ready=false` / `ProviderNotConfigured`; the in-memory provider is for tests only.
 
 ## Develop and verify
 
@@ -56,9 +58,9 @@ The scaffold can be run, **only in an explicitly approved test namespace**, with
 kopf run --standalone --namespace=default -m cuse_operator.operator
 ```
 
-This command starts an active watcher and writes validation status/Kopf annotations.
+This command starts the eight controllers together and writes reconciliation status.
 It also lists split resources and patches dependent statuses after changes/deletions.
-It is not a no-write cluster dry-run. The pure `reconcile` function and CLI are the
+It is not a no-write cluster dry-run. The offline validation helpers and CLI are the
 offline dry-run surfaces. Installation and cluster execution are not performed by
 this repository setup. Sample RBAC covers one namespace and one standalone operator;
 no Secret, workload, cluster-admin, peering or external-provider privileges are granted.
@@ -70,5 +72,6 @@ Never place credentials, signed URLs, bearer-capability URLs, transcripts, cooki
 or private operational data in domain URLs/storage references or Kubernetes specs.
 The validator catches recognizable credential syntax, but cannot detect every secret
 hidden in an opaque path or identifier. Operator status is generic and redacted;
-Kopf stores the desired-state diff base in annotations, so specs must be non-secret.
+Specs and deterministic desired-state revisions are not credential storage. Raw watches
+do not write Kopf diff-base annotations; provider adapters must keep credentials separate.
 No license has been selected; public visibility alone does not grant a software license.

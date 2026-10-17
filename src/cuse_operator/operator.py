@@ -1,9 +1,7 @@
-"""Validation-only Kopf adapter: no provisioning, network probes or deletion.
+"""Namespace-local Kopf watches dispatch to eight dedicated controllers.
 
-Run namespace-bound and standalone (single replica). Framework progress and
-change detection use metadata annotations, while application output only
-patches the status subresource. A successful handler returns None deliberately:
-Kopf must not add a per-handler result field outside the typed status schema.
+The default provider is disabled. Raw watches never install finalizers or write
+progress annotations; provider deletion retains external resources by policy.
 """
 import asyncio
 from copy import deepcopy
@@ -15,8 +13,13 @@ import kopf
 
 from .codec import architecture_from_dict
 from .schema import GROUP, PLURAL, VERSION
-from .resources import PLURALS, validate_resource
+from .resources import PLURALS
+from .controllers import CONTROLLERS
+from .providers import DisabledProvider
+
 from .validation import ValidationError
+
+ALL_PLURALS = {**PLURALS, "Architecture": PLURAL}
 
 
 def reconcile(spec: Any, generation: int = 0) -> dict[str, Any]:
@@ -51,10 +54,8 @@ def configure(settings: kopf.OperatorSettings, **_: Any) -> None:
     settings.scanning.disabled = True
 
 
-@kopf.on.create(GROUP, VERSION, PLURAL)
-@kopf.on.resume(GROUP, VERSION, PLURAL)
-@kopf.on.update(GROUP, VERSION, PLURAL, field="spec")
 def validate(spec: kopf.Spec, meta: kopf.Meta, patch: kopf.Patch, **_: Any) -> None:
+    """Undecorated compatibility helper; active Architecture uses its controller."""
     patch.status.update(reconcile(spec, generation=meta.get("generation", 0)))
 
 
@@ -62,72 +63,117 @@ def validate(spec: kopf.Spec, meta: kopf.Meta, patch: kopf.Patch, **_: Any) -> N
 # or install finalizers. Their validation reads fresh namespace-local inventories.
 
 
-class DependencyValidator:
-    """One-replica, eventually consistent reference validation, never provisioning.
+class ControllerManager:
+    """Serialize namespace refreshes; retry fresh reads on periodic resync.
 
-    Lists across kinds are not transactional. Events and periodic full refreshes
-    converge after concurrent edits; resourceVersion/UID prevent stale writes to
-    changed or recreated targets. A namespace lock serializes this process's writes.
+    Lists are eventually consistent. UID/resourceVersion guard status writes.
+    All provider calls are bounded and the default cannot provision anything.
     """
 
-    def __init__(self, api):
+    def __init__(self, api, provider=None, controllers=None, timeout=30):
         self.api = api
+        self.provider = provider if provider is not None else DisabledProvider()
+        self.controllers = CONTROLLERS if controllers is None else controllers
+        self.timeout = timeout
         self.locks: dict[str, asyncio.Lock] = {}
         self.seen: dict[tuple[str, str, str], Any] = {}
+        self.pending_deletes = {}
 
     async def event(self, kind, event):
         body = event["object"]
         meta = body.get("metadata", {})
         namespace, name = meta.get("namespace"), meta.get("name")
-        if not namespace or not name:
+        if not namespace or not name or kind not in self.controllers:
             return
-        self.locks.setdefault(namespace, asyncio.Lock())
+        lock = self.locks.setdefault(namespace, asyncio.Lock())
         key = namespace, kind, name
         fingerprint = deepcopy((meta.get("uid"), meta.get("generation"),
                                 meta.get("deletionTimestamp"), body.get("spec")))
-        if event.get("type") == "DELETED":
-            self.seen.pop(key, None)
-        elif self.seen.get(key) == fingerprint:
-            return  # Ignore status-only writes, including our own patches.
-        else:
-            self.seen[key] = fingerprint
-        await self.refresh(namespace)
+        async with lock:
+            if event.get("type") == "DELETED":
+                self.seen.pop(key, None)
+                self.pending_deletes[(*key, meta.get("uid"))] = deepcopy(body)
+            elif self.seen.get(key) == fingerprint:
+                return  # Status-only changes do not recursively trigger writes.
+            else:
+                self.seen[key] = fingerprint
+            await self._refresh(namespace)
 
     async def refresh(self, namespace):
-        lock = self.locks.setdefault(namespace, asyncio.Lock())
-        async with lock:
-            inventory = {}
-            for kind, plural in PLURALS.items():
+        async with self.locks.setdefault(namespace, asyncio.Lock()):
+            await self._refresh(namespace)
+
+    async def _delete(self, kind, body):
+        try:
+            async with asyncio.timeout(self.timeout):
+                await self.controllers[kind].on_delete(body, self.provider)
+            return True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "Deletion retention callback failed; retrying on periodic resync.")
+            return False
+
+    async def _refresh(self, namespace):
+        for key, body in list(self.pending_deletes.items()):
+            if key[0] == namespace and await self._delete(key[1], body):
+                del self.pending_deletes[key]
+        inventory = {}
+        deleting = []
+        for kind, plural in ALL_PLURALS.items():
+            async with asyncio.timeout(self.timeout):
                 response = await self.api.list_namespaced_custom_object(
                     GROUP, VERSION, namespace, plural, _request_timeout=30,
                 )
-                inventory[kind] = {
-                    body["metadata"]["name"]: body
-                    for body in response["items"]
-                    if not body.get("metadata", {}).get("deletionTimestamp")
-                }
-            flat_inventory = [body for objects in inventory.values() for body in objects.values()]
-            for kind, objects in inventory.items():
-                for name, body in objects.items():
-                    meta = body["metadata"]
-                    status = dict(validate_resource(kind, body.get("spec"), namespace, flat_inventory))
-                    status["observedGeneration"] = meta.get("generation", 0)
-                    if body.get("status") == status:
-                        continue
-                    # Both identity and optimistic concurrency are enforced by
-                    # the apiserver. Never retry a stale patch against a new body.
-                    patch = {"metadata": {"uid": meta["uid"],
-                                          "resourceVersion": meta["resourceVersion"]},
-                             "status": status}
-                    try:
+            inventory[kind] = {}
+            for body in response["items"]:
+                if body.get("metadata", {}).get("deletionTimestamp"):
+                    deleting.append((kind, body))
+                else:
+                    inventory[kind][body["metadata"]["name"]] = body
+        for kind, body in deleting:
+            await self._delete(kind, body)
+        flat_inventory = [body for objects in inventory.values() for body in objects.values()]
+        # ALL_PLURALS is dependency ordered, with the aggregate last.
+        for kind, objects in inventory.items():
+            for name, body in objects.items():
+                meta = body["metadata"]
+                try:
+                    async with asyncio.timeout(self.timeout):
+                        status = await self.controllers[kind].reconcile(
+                            body, flat_inventory, self.provider)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    # One slow or broken controller cannot starve independent
+                    # objects or leave a previously-ready object falsely ready.
+                    status = {
+                        "phase": "Invalid", "reason": "ValidationFailed",
+                        "message": "Controller reconciliation could not complete; retry is scheduled.",
+                        "observedGeneration": meta.get("generation", 0),
+                        "ready": False,
+                        "reconciliationReason": ("RetryableProviderError" if isinstance(exc, TimeoutError)
+                                                 else "ProviderError"),
+                        "desiredRevision": "", "observedRevision": "", "lastAction": "None",
+                    }
+                if body.get("status") == status:
+                    continue
+                patch = {"metadata": {"uid": meta["uid"],
+                                      "resourceVersion": meta["resourceVersion"]},
+                         "status": status}
+                try:
+                    async with asyncio.timeout(self.timeout):
                         await self.api.patch_namespaced_custom_object_status(
-                            GROUP, VERSION, namespace, PLURALS[kind], name, patch,
+                            GROUP, VERSION, namespace, ALL_PLURALS[kind], name, patch,
                             _content_type="application/merge-patch+json", _request_timeout=30,
                         )
-                    except Exception as exc:
-                        if getattr(exc, "status", None) not in (404, 409):
-                            raise
-                        # Periodic fresh reads retry conflicts/deletions safely.
+                    body["status"] = status
+                except Exception as exc:
+                    if getattr(exc, "status", None) not in (404, 409):
+                        raise
+                    # Do not expose unpersisted readiness to dependent controllers.
+                    # Periodic fresh reads retry conflicts/deletions safely.
 
     async def resync(self, interval=30):
         while True:
@@ -141,6 +187,9 @@ class DependencyValidator:
                     # Do not log bodies or credentials from exception messages.
                     logging.getLogger(__name__).warning(
                         "Dependency validation refresh failed; retrying on next resync.")
+
+
+DependencyValidator = ControllerManager  # Backward-compatible import.
 
 
 @kopf.on.startup()
@@ -182,10 +231,10 @@ def _register_dependency_watch(kind, plural):
             logging.getLogger(__name__).warning(
                 "Dependency event validation failed; retrying on periodic resync.")
 
-    kopf.on.event(GROUP, VERSION, plural, id=f"validate-{plural}")(watch)
+    kopf.on.event(GROUP, VERSION, plural, id=f"reconcile-{plural}")(watch)
     return watch
 
 
 DEPENDENCY_WATCHES = {
-    kind: _register_dependency_watch(kind, plural) for kind, plural in PLURALS.items()
+    kind: _register_dependency_watch(kind, plural) for kind, plural in ALL_PLURALS.items()
 }

@@ -5,7 +5,9 @@ independent namespaced CRDs, as requested. This supersedes the initial aggregate
 API choice. [The original gist](https://gist.github.com/r33drichards/4da908ee769df274a16fa76ea1e1b1ae)
 and [preserved source design](history/original-design-and-plan.md) provide history;
 the canonical Python dataclasses and the explicit mappings below are the current contract.
-This remains a validation-only scaffold, not a provisioning system.
+Each CRD now has a dedicated desired-state controller. Production provider adapters
+remain unconfigured: the default controller reports ready=false and never provisions
+resources. The in-memory adapter proves reconciliation behavior in tests only.
 
 ## 1. Design
 
@@ -98,28 +100,78 @@ validation only, not provider readiness. Status never echoes submitted values,
 endpoints, secrets or exception text. Architecture retains its original two-state
 status and serialized spec unchanged.
 
-### 1.4 Reconciliation and dependency updates
+### 1.4 Dedicated controllers and provider boundaries
 
-Architecture retains its original create/update/resume validation handler and annotation
-persistence. Split resources use low-level watches; a meaningful resource event triggers
-a fresh namespace-scoped inventory of the split kinds and revalidates that namespace.
-Dependency deletion, invalidation, ID collisions and later repairs are consequently
-reflected in dependent statuses. Status-only changes are ignored to avoid loops.
-A periodic resync retries transient failures and missed work. The implementation is a
-validation scaffold with namespace-wide scans, not a production-scale indexed controller.
+Eight controller modules under `controllers/` cover IRCServer, WeeChat, Connector,
+MCPClient, PiHarness, Session, Bot and Architecture. They share reconciliation machinery
+but each defines its own desired resource intent and reference inputs. One Kopf process
+runs them together; a controller per CRD does not require eight redundant deployments.
 
-Status patches carry resource identity/version preconditions to avoid overwriting a
-newer spec or a replacement object's status. Concurrent namespace changes are eventually
-consistent; a list across several kinds is not an atomic Kubernetes snapshot. Watch and
-resync repair temporary observations. API failures do not mean dependencies are absent.
-The controller does not provision workloads, probe endpoints, start sessions, configure
-connectors or change external providers.
+Each reconciliation validates the spec/reference graph, constructs a deterministic
+revision from desired input and relevant dependency identities/revisions, observes its
+provider's actual state, and decides create, update, wait or no-op. Required runtime dependencies must themselves be observed ready at their expected
+revision before a child is applied. A matching revision
+alone is not sufficient for readiness: the provider must report ready. Generation and
+UID scope the observation; a replacement Kubernetes object cannot silently adopt the
+previous object's owned state. Changes in dependencies invalidate the desired revision.
 
-Run one standalone replica scoped to an explicit namespace. Runtime RBAC permits only
-get/list/watch of the CRDs, status patches, and Architecture annotation patches needed
-by Kopf. No Secret, workload, cluster-admin, peering or external-provider privileges.
-Initial discovery relies on standard authenticated discovery permissions. CRD installation
-is a separate administrative action. No live cluster or RBAC test has been performed.
+The provider interface is explicit and asynchronous. Default `DisabledProvider` reports
+`ready=false` / `ProviderNotConfigured`; it does not pretend that validated configuration
+is a running server or session. `InMemoryProvider` is a deterministic test adapter that
+stores observed state and exercises real desired-versus-observed convergence, drift,
+readiness, idempotency and error paths. It is not persisted, production-ready or selected
+by the runtime. No network or infrastructure backend is bundled yet.
+
+Provider apply operations use stable UID/revision idempotency keys. Retries observe
+before applying again; unknown outcomes must be resolved through observation, never
+blindly duplicated. Retryable, terminal and uncertain-outcome errors become generic
+status results without copying provider exception details. Provider implementations
+must preserve these contracts when introduced.
+
+Status preserves the validation `phase` and adds `ready`, `reconciliationReason`,
+`desiredRevision`, `observedRevision`, `lastAction` and `observedGeneration`. Consumers
+must use ready plus the current observedGeneration for runtime readiness, never infer it
+from phase=Valid. All default runtime providers are unconfigured, so ready stays false.
+If a controller itself times out or fails before returning validation, the manager
+uses a conservative Invalid/ValidationFailed fallback with ready=false; inspect
+reconciliationReason for the actual runtime failure rather than assuming a spec error.
+
+Raw watches dispatch creation/initial listing, spec changes, dependency changes and
+deletion to the appropriate controller. Fresh namespace inventories and periodic resync
+repair missed changes and retry transient errors. Status-only events are suppressed to
+avoid loops. Namespace-scoped serialization and UID/resourceVersion-preconditioned
+status merge patches prevent writes over a changed/recreated target. Cross-kind lists
+are not atomic snapshots: convergence remains eventual, and this initial implementation
+uses namespace-wide scans rather than production-scale reverse indexes.
+
+Deletion calls the matching controller's retain-only deletion path. There is no provider
+delete operation, finalizer or ownerReference cascade, so deleting a Bot or Session never
+implicitly deletes shared WeeChat, harness, connectors, external data or history. A
+future explicit deletion/retention API needs its own review; delete events are best effort
+and cannot guarantee cleanup, which is why this version retains everything.
+
+Run one standalone replica scoped to an explicit namespace. RBAC remains custom-resource
+reads and status writes only. No workload, Secret, cluster-admin or external-provider permissions.
+All API and provider operations use bounded timeouts and generic redacted error logging.
+CRD installation remains a separate administrative action. No live cluster was used.
+
+### 1.4.1 Decisions required before effectful providers
+
+The current specs describe identities, endpoints and links; they do not supply enough
+information to invent a production deployment. Explicit decisions remain:
+
+- IRCServer/WeeChat: approved immutable images, resource limits, persistent volumes,
+  configuration, secret references, TLS and service exposure; managed versus existing
+- Connector/MCPClient: actual process/transport implementation, tool authorization,
+  credentials, connection lifecycle and health contract
+- PiHarness/Session: approved runtime/storage/provider, context ownership, durable
+  identity mapping, admission/execution and retention rules
+- Bot: binding/activation semantics and readiness contract over its WeeChat/harness
+- Architecture: compatibility snapshot only; it must never take ownership of split CRDs
+
+The controller interfaces and tests are implemented now; real provider adapters are
+tracked separately. Adding guessed Deployment manifests or returning Ready=True without
+these decisions would misrepresent what this code manages.
 
 ### 1.5 Backward compatibility and migration
 
@@ -128,7 +180,7 @@ is a separate administrative action. No live cluster or RBAC test has been perfo
 kinds. Existing Architecture resources keep their payload and validation behavior.
 Upgrade installations by adding all seven CRDs from config/crds.json and updating
 config/rbac.yaml before starting this operator version. The runtime watches all kinds.
-They are treated as aggregate/import compatibility data only: the operator does not
+Architecture resources are treated as aggregate/import compatibility data only: the operator does not
 automatically create, mutate or delete split resources from them. There is therefore
 no second controller authority over independently managed resources.
 
@@ -141,11 +193,11 @@ until the split configuration has been independently validated; deletion is a us
 ### 1.6 Limits before production
 
 - Semantic admission, size bounds, Kubernetes installation and RBAC integration tests
-  remain issue #4. Architecture's diff-base annotations can exceed annotation limits
-  for large specs; do not use unbounded aggregates in production.
+  remain issue #4. Unbounded aggregate and reference lists still need production size budgets;
+  do not use unbounded resource graphs in production.
 - Split resources need production-scale indexes, load testing, concurrency/fault testing
   and an explicit leadership strategy before multiple replicas.
-- No endpoint health, workload management, secret handling or external execution exists.
+- No production provider backend, endpoint health probe, secret handling or external execution exists.
 - Kubernetes specs/status/annotations are not transcript or credential storage.
 - Experimental MCP Events require version/capability negotiation and durable delivery;
   notifications alone are not a message queue or proven production protocol.
@@ -158,6 +210,7 @@ until the split configuration has been independently validated; deletion is a us
 | Original aggregate scaffold | [#2](https://github.com/r33drichards/cuse-operator/issues/2) | Backward-compatible Architecture API |
 | Initial docs and CI | [#3](https://github.com/r33drichards/cuse-operator/issues/3) | Verified scaffold publication |
 | Split resource API | [#9](https://github.com/r33drichards/cuse-operator/issues/9) | Six requested kinds, shared IRCServer, references and watches |
+| Dedicated per-kind controllers | [#10](https://github.com/r33drichards/cuse-operator/issues/10) | Desired/observed convergence, provider boundary and lifecycle dispatch |
 | Admission/version hardening | [#4](https://github.com/r33drichards/cuse-operator/issues/4) | API-server semantic protection and integration verification |
 | Kubernetes providers | [#5](https://github.com/r33drichards/cuse-operator/issues/5) | Pure workload plans and idempotent provider adapters |
 | Pi/MCP runtime | [#6](https://github.com/r33drichards/cuse-operator/issues/6) | Durable session mappings and scoped tools |

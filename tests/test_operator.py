@@ -79,10 +79,9 @@ def test_rbac_matches_validation_only_mode():
     assert [document["kind"] for document in documents] == ["ServiceAccount", "Role", "RoleBinding"]
     role = documents[1]
     assert role["rules"] == [
-        {"apiGroups": ["cuse.io"], "resources": ["architectures"], "verbs": ["get", "list", "watch", "patch"]},
         {
             "apiGroups": ["cuse.io"],
-            "resources": ["ircservers", "weechats", "connectors", "mcpclients",
+            "resources": ["architectures", "ircservers", "weechats", "connectors", "mcpclients",
                           "piharnesses", "sessions", "bots"],
             "verbs": ["get", "list", "watch"],
         },

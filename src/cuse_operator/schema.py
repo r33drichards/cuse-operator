@@ -60,14 +60,19 @@ def _json_default(value):
 
 
 def status_schema():
-    """Only controller validation output belongs in status."""
+    """Typed validation and provider convergence output belongs in status."""
     return {
         "type": "object",
         "properties": {
             "phase": {"type": "string", "enum": ["Valid", "Invalid"]},
             "observedGeneration": {"type": "integer", "minimum": 0},
-            "reason": {"type": "string", "enum": ["Validated", "ValidationFailed"]},
+            "reason": {"type": "string", "enum": ["Validated", "ValidationFailed", "Retained"]},
             "message": {"type": "string"},
+            "ready": {"type": "boolean"},
+            "reconciliationReason": {"type": "string"},
+            "desiredRevision": {"type": "string"},
+            "observedRevision": {"type": "string"},
+            "lastAction": {"type": "string", "enum": ["None", "Create", "Update", "NoOp", "Retain"]},
         },
         "required": ["phase", "observedGeneration", "reason", "message"],
     }

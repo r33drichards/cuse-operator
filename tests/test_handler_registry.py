@@ -8,7 +8,7 @@ from kopf._cogs.structs.diffs import diff
 from kopf._cogs.structs.references import Resource
 from kopf._core.intents.causes import ChangingCause, Reason
 
-from cuse_operator.operator import reconcile, validate
+from cuse_operator.operator import reconcile
 
 
 SPEC = {"irc": {"id": "irc", "endpoint": "ircs://irc.example.test"}}
@@ -17,12 +17,12 @@ SPEC = {"irc": {"id": "irc", "endpoint": "ircs://irc.example.test"}}
 @pytest.mark.parametrize(
     "reason,initial,old,new,expected",
     [
-        (Reason.CREATE, False, None, {"spec": SPEC}, ["validate"]),
-        (Reason.RESUME, True, {"spec": SPEC}, {"spec": SPEC}, ["validate"]),
+        (Reason.CREATE, False, None, {"spec": SPEC}, []),
+        (Reason.RESUME, True, {"spec": SPEC}, {"spec": SPEC}, []),
         (
             Reason.UPDATE, False,
             {"spec": {"irc": {"id": "old", "endpoint": "ircs://irc.example.test"}}},
-            {"spec": SPEC}, ["validate/spec"],
+            {"spec": SPEC}, [],
         ),
         (
             Reason.UPDATE, False,
@@ -48,7 +48,8 @@ def test_registered_handler_selection(reason, initial, old, new, expected):
     )
     handlers = kopf.get_default_registry()._changing.get_handlers(cause)
     assert [str(handler.id) for handler in handlers] == expected
-    assert all(handler.fn is validate for handler in handlers)
+    # Architecture has only the raw event controller, never a competing changer.
+    assert not handlers
 
 
 def test_actual_kopf_spec_mapping_is_decoded():
