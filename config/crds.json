@@ -651,6 +651,24 @@
                       "mcp_endpoint": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "weechatRef": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ]
                       }
                     },
                     "required": [

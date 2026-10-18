@@ -10,10 +10,19 @@ and shared IRCServer CRDs, reference validation and dependency watches, sanitize
 status, dedicated desired-state controllers for all eight CRDs, explicit provider
 interfaces, idempotent in-memory convergence tests, minimal RBAC and offline CLI. The original Architecture
 aggregate remains supported unchanged.
-**Deferred:** production provider adapters, network health checks, admission webhooks, credentials,
-live deployment, Cloudflare/desktop/provider integration and experimental MCP Events.
-A `Valid` status does not mean running, connected or ready. The default provider reports
-`ready=false` / `ProviderNotConfigured`; the in-memory provider is for tests only.
+**Concrete opt-in implementations:** retained Kubernetes workloads for IRCServer,
+WeeChat and MCPClient; linked Connector and logical Bot bindings; authenticated
+Cloudflare control client and a fresh Pi Durable Worker/SQLite runtime for
+PiHarness and Session. [Runtime adapters](docs/runtime-adapters.md) describe
+activation, readiness and the remaining integration gaps. Architecture remains
+compatibility-only and never provisions a duplicate graph.
+
+The default provider reports `ready=false` / `ProviderNotConfigured`.
+`CUSE_PROVIDER_CONFIG` explicitly enables supported effects; it is not a dry-run
+switch. WeeChat currently stays not-ready because upstream lacks safe live IRC
+connection proof. IRC-to-Pi routing, MCP tools inside Pi, context imports,
+end-user sharing/auth, admission webhooks and MCP Events remain unimplemented.
+No cluster/cloud deployment or real inference has been tested or performed.
 
 ## Develop and verify
 

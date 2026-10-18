@@ -201,8 +201,13 @@ async def start_dependencies(memo: kopf.Memo, **_: Any) -> None:
         config.load_incluster_config()
     except ConfigException:
         await config.load_kube_config()
+    from .runtime import build_provider, load_provider_config
+
+    provider_config = load_provider_config()
     memo.dependency_client = client.ApiClient()
-    memo.dependency_validator = DependencyValidator(client.CustomObjectsApi(memo.dependency_client))
+    provider = build_provider(provider_config,
+        apps=client.AppsV1Api(memo.dependency_client), core=client.CoreV1Api(memo.dependency_client))
+    memo.dependency_validator = DependencyValidator(client.CustomObjectsApi(memo.dependency_client), provider=provider)
     memo.dependency_resync = asyncio.create_task(memo.dependency_validator.resync())
 
 

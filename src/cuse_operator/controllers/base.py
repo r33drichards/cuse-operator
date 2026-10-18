@@ -106,6 +106,10 @@ class Controller:
         status["desiredRevision"] = desired.revision
         provider = provider if provider is not None else DisabledProvider()
         try:
+            binder = getattr(provider, "bind_plan", None)
+            if binder is not None:
+                for plan in [desired, *context.cache.values()]:
+                    binder(plan)
             observed = await asyncio.wait_for(provider.observe(desired.identity), timeout=self.provider_timeout)
             status["observedRevision"] = observed.revision if re.fullmatch(r"[0-9a-f]{64}", observed.revision) else ""
             # Every transitive dependency is checked: ancestor readiness can

@@ -1,0 +1,18 @@
+# OPTIONAL additional Role for explicitly enabled workload providers.
+# This file is a reviewable installation artifact; it is never auto-applied.
+# Bind it to the operator identity only after operational authorization.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cuse-operator-workload-providers
+  namespace: default
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, create, patch]
+  - apiGroups: [""]
+    resources: [services, configmaps]
+    verbs: [get, create, patch]
+  - apiGroups: [""]
+    resources: [pods, endpoints]
+    verbs: [get]

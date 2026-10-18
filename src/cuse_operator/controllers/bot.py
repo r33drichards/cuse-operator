@@ -11,4 +11,12 @@ def build_plan(body, context):
                            "botIdentity": spec["id"], "dependencies": [weechat, harness]})
 
 
-controller = Controller("Bot", build_plan)
+class BotController(Controller):
+    async def reconcile(self, body, inventory, provider=None):
+        result = await super().reconcile(body, inventory, provider)
+        if result["ready"]:
+            result["message"] = "WeeChat and harness runtime bindings are ready; message ingress is not managed."
+        return result
+
+
+controller = BotController("Bot", build_plan)

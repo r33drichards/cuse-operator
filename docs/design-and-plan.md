@@ -1,6 +1,6 @@
 # Canonical IRC/MCP operator: design and plan
 
-Updated 2026-10-17 to make Bot, Session, PiHarness, MCPClient, Connector and WeeChat
+Updated 2026-10-18 to make Bot, Session, PiHarness, MCPClient, Connector and WeeChat
 independent namespaced CRDs, as requested. This supersedes the initial aggregate-only
 API choice. [The original gist](https://gist.github.com/r33drichards/4da908ee769df274a16fa76ea1e1b1ae)
 and [preserved source design](history/original-design-and-plan.md) provide history;
@@ -120,7 +120,8 @@ The provider interface is explicit and asynchronous. Default `DisabledProvider` 
 is a running server or session. `InMemoryProvider` is a deterministic test adapter that
 stores observed state and exercises real desired-versus-observed convergence, drift,
 readiness, idempotency and error paths. It is not persisted, production-ready or selected
-by the runtime. No network or infrastructure backend is bundled yet.
+by the runtime. Concrete opt-in adapters and the fresh Worker runtime are described in
+[runtime adapters](runtime-adapters.md); they are disabled without explicit operator configuration.
 
 Provider apply operations use stable UID/revision idempotency keys. Retries observe
 before applying again; unknown outcomes must be resolved through observation, never
@@ -155,23 +156,21 @@ reads and status writes only. No workload, Secret, cluster-admin or external-pro
 All API and provider operations use bounded timeouts and generic redacted error logging.
 CRD installation remains a separate administrative action. No live cluster was used.
 
-### 1.4.1 Decisions required before effectful providers
+### 1.4.1 Concrete runtime choices and remaining decisions
 
-The current specs describe identities, endpoints and links; they do not supply enough
-information to invent a production deployment. Explicit decisions remain:
+IRCServer reconciles a managed Deployment/internal Service using an explicitly
+selected digest from the user's docker fork. WeeChat owns one bundled weechat-mcp
+workload. Connector may reference that owner through optional same-namespace
+`weechatRef`; it never duplicates the client. MCPClient runs mcp-js with explicit
+policies and existing Secret projections. PiHarness/Session use a fresh Cloudflare
+Worker/SQLite DO runtime and authenticated control API; each Session has one root
+conversation. Bot is a logical binding. Architecture stays compatibility-only.
 
-- IRCServer/WeeChat: approved immutable images, resource limits, persistent volumes,
-  configuration, secret references, TLS and service exposure; managed versus existing
-- Connector/MCPClient: actual process/transport implementation, tool authorization,
-  credentials, connection lifecycle and health contract
-- PiHarness/Session: approved runtime/storage/provider, context ownership, durable
-  identity mapping, admission/execution and retention rules
-- Bot: binding/activation semantics and readiness contract over its WeeChat/harness
-- Architecture: compatibility snapshot only; it must never take ownership of split CRDs
-
-The controller interfaces and tests are implemented now; real provider adapters are
-tracked separately. Adding guessed Deployment manifests or returning Ready=True without
-these decisions would misrepresent what this code manages.
+Images, actual Secret bindings, model selection, deployment/access, TLS/network
+isolation, durable storage policy for Kubernetes workloads, user authorization
+and production budgets still require operator choices. No default guesses activate
+these effects. [Runtime adapters](runtime-adapters.md) and the
+[Worker contract](../runtime/pi/README.md) define precise readiness and limitations.
 
 ### 1.5 Backward compatibility and migration
 
@@ -197,7 +196,7 @@ until the split configuration has been independently validated; deletion is a us
   do not use unbounded resource graphs in production.
 - Split resources need production-scale indexes, load testing, concurrency/fault testing
   and an explicit leadership strategy before multiple replicas.
-- No production provider backend, endpoint health probe, secret handling or external execution exists.
+- Concrete providers and bounded authenticated protocol probes have offline tests, but no live deployment verification. WeeChat lacks safe upstream IRC proof and remains not-ready. IRC ingress, Pi MCP tools, user authorization and context import remain open.
 - Kubernetes specs/status/annotations are not transcript or credential storage.
 - Experimental MCP Events require version/capability negotiation and durable delivery;
   notifications alone are not a message queue or proven production protocol.
@@ -217,7 +216,7 @@ until the split configuration has been independently validated; deletion is a us
 | Cloudflare delivery | [#7](https://github.com/r33drichards/cuse-operator/issues/7) | Authenticated routing and durable inbox/outbox |
 | MCP Events experiment | [#8](https://github.com/r33drichards/cuse-operator/issues/8) | Versioned capabilities, failure tests and fallback |
 
-Later provider/runtime stages remain deferred. Issue tracking is not approval for
+Remaining production integration stages are tracked in issue #11. Issue tracking is not approval for
 production edits, resource deletion, new access grants or deployments. Before a live
 test agree on a disposable namespace/cluster, permissions, budgets and cleanup.
 
@@ -226,3 +225,20 @@ test agree on a disposable namespace/cluster, permissions, budgets and cleanup.
 - [Kopf handlers](https://docs.kopf.dev/en/stable/handlers/)
 - [Kopf configuration](https://docs.kopf.dev/en/stable/configuration/)
 - [Kubernetes CustomResourceDefinitions](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/)
+
+
+## Source-backed runtime implementation update
+
+The [runtime adapter design](runtime-adapters.md) is the current implementation
+boundary for concrete providers. IRCServer uses the user-selected docker fork
+and a managed Deployment/internal Service. Connector means a downstream MCP
+server for mcp-js, including WeeChat MCP implemented by weechat-mcp. The additive,
+reviewable optional Connector.weechatRef links to the one owning WeeChat runtime;
+it must match server, nickname and endpoint, and never creates a duplicate client.
+MCPClient desired plans now include resolved downstream names and URLs.
+
+PiHarness and Session target fresh Cloudflare Workers + SQLite Durable Object
+implementations based on the selected Pi Durable reference, not existing Cuse
+runtime. Kopf manages declarative desired state through an authenticated runtime
+control API; no Cloudflare deployment or account/credential changes are implied.
+The original canonical dataclasses remain unchanged.

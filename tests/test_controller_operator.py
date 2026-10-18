@@ -42,7 +42,7 @@ def test_all_eight_active_controllers_write_typed_disabled_status():
             status = body["status"]
             assert status["phase"] == "Valid"
             assert status["ready"] is False
-            assert status["reconciliationReason"] == "ProviderNotConfigured"
+            assert status["reconciliationReason"] == ("CompatibilityOnly" if body["kind"] == "Architecture" else "ProviderNotConfigured")
             jsonschema.validate(status, schemas[body["kind"]])
     asyncio.run(run())
 
@@ -52,16 +52,16 @@ def test_actual_provider_dispatch_converges_and_restart_is_idempotent():
         bodies, provider = graph(), InMemoryProvider()
         api = FakeAPI(*bodies)
         await ControllerManager(api, provider).refresh("default")
-        assert provider.ensure_count == 8
-        assert all(body["status"]["ready"] for body in bodies)
+        assert provider.ensure_count == 7
+        assert all(body["status"]["ready"] for body in bodies if body["kind"] != "Architecture")
         await ControllerManager(api, provider).refresh("default")
-        assert provider.ensure_count == 8
-        assert all(body["status"]["lastAction"] == "NoOp" for body in bodies)
+        assert provider.ensure_count == 7
+        assert all(body["status"]["lastAction"] == "NoOp" for body in bodies if body["kind"] != "Architecture")
         bodies[0]["spec"]["endpoint"] = "ircs://new.example.test"
         bodies[0]["metadata"]["generation"] += 1
         await ControllerManager(api, provider).refresh("default")
-        assert provider.ensure_count > 8
-        assert all(body["status"]["ready"] for body in bodies)
+        assert provider.ensure_count > 7
+        assert all(body["status"]["ready"] for body in bodies if body["kind"] != "Architecture")
     asyncio.run(run())
 
 
@@ -118,7 +118,7 @@ def test_delete_retains_provider_resources_and_shared_dependencies():
         removed = api.bodies.pop(1)
         await manager.event("WeeChat", {"type": "DELETED", "object": removed})
         assert provider.state == original
-        assert len(provider.state) == 8
+        assert len(provider.state) == 7
     asyncio.run(run())
 
 
@@ -156,7 +156,7 @@ def test_failed_delete_callback_is_retried_on_refresh_without_body():
                                     controllers={**CONTROLLERS, "IRCServer": callback})
         await manager.event("IRCServer", {"type": "DELETED", "object": server()})
         assert len(manager.pending_deletes) == 1
-        assert aggregate["status"]["reconciliationReason"] == "ProviderNotConfigured"
+        assert aggregate["status"]["reconciliationReason"] == "CompatibilityOnly"
         await manager.refresh("default")
         assert callback.calls == 2
         assert not manager.pending_deletes
@@ -182,6 +182,6 @@ def test_failed_first_controller_clears_ready_and_does_not_starve_aggregate(fail
             assert bodies[0]["status"]["ready"] is False
             assert bodies[0]["status"]["reconciliationReason"] == (
                 "RetryableProviderError" if failure == "timeout" else "ProviderError")
-            assert bodies[-1]["status"]["reconciliationReason"] == "ProviderNotConfigured"
+            assert bodies[-1]["status"]["reconciliationReason"] == "CompatibilityOnly"
             assert "sensitive" not in json.dumps([body["status"] for body in bodies])
     asyncio.run(run())
