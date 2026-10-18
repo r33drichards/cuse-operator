@@ -1,0 +1,6 @@
+# References and empty configuration only. Do not commit credentials.
+# Supply existing secrets/config only after deployment/access authorization.
+CONTROL_API_TOKEN=
+PI_MODEL_PROVIDER=
+PI_MODEL_ID=
+PI_MODEL_SECRET_BINDING=

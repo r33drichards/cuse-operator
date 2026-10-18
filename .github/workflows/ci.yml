@@ -18,3 +18,18 @@ jobs:
       - run: python -m compileall -q src
       - run: cuse-validate examples/architecture.json
       - run: cuse-validate examples/resources.json
+  durable-runtime:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: runtime/pi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: runtime/pi/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run bundle

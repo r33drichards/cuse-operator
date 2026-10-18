@@ -32,7 +32,7 @@ def reconcile_graph(graph, provider):
     return {body["kind"]: run(CONTROLLERS[body["kind"]].reconcile(body, graph, provider)) for body in graph}
 
 
-@pytest.mark.parametrize("kind", list(CONTROLLERS))
+@pytest.mark.parametrize("kind", [kind for kind in CONTROLLERS if kind != "Architecture"])
 def test_each_kind_create_observe_noop_update_and_retain(all_graph, kind):
     provider = InMemoryProvider()
     original = deepcopy(all_graph)
@@ -80,7 +80,7 @@ def test_disabled_provider_never_implies_readiness(all_graph, kind):
     body = next(b for b in all_graph if b["kind"] == kind)
     result = run(CONTROLLERS[kind].reconcile(body, all_graph))
     assert result["phase"] == "Valid" and not result["ready"]
-    assert result["reconciliationReason"] == "ProviderNotConfigured"
+    assert result["reconciliationReason"] == ("CompatibilityOnly" if kind == "Architecture" else "ProviderNotConfigured")
 
 
 def test_pending_observed_until_ready_and_children_blocked(all_graph):
@@ -175,7 +175,7 @@ def test_transitive_ancestor_readiness_drift_blocks_and_recovers(all_graph):
         result = run(CONTROLLERS[kind].reconcile(body, all_graph, provider))
         assert not result["ready"] and result["reconciliationReason"] == "DependencyNotReady"
     provider.set_ready(identity(all_graph[0]))
-    assert all(s["ready"] for s in reconcile_graph(all_graph, provider).values())
+    assert all(s["ready"] for kind, s in reconcile_graph(all_graph, provider).items() if kind != "Architecture")
 
 
 def test_provider_timeout_is_retryable_and_cancellation_propagates(all_graph):
@@ -195,3 +195,21 @@ def test_provider_timeout_is_retryable_and_cancellation_propagates(all_graph):
             raise asyncio.CancelledError()
     with pytest.raises(asyncio.CancelledError):
         run(controller.reconcile(all_graph[0], all_graph, Cancelled()))
+
+
+def test_mcp_plan_resolves_downstream_connector_identity_and_endpoint(all_graph):
+    from cuse_operator.controllers.base import PlanContext
+
+    client = all_graph[3]
+    plan = CONTROLLERS["MCPClient"].build_plan(client, PlanContext("team", all_graph))
+    assert plan.intent["downstreams"] == [{"name": all_graph[2]["spec"]["id"],
+                                            "url": all_graph[2]["spec"]["mcp_endpoint"]}]
+    assert plan.intent["downstreams"][0]["name"] != all_graph[2]["metadata"]["name"]
+
+
+def test_architecture_compatibility_never_calls_runtime_provider(all_graph):
+    provider = InMemoryProvider()
+    result = run(CONTROLLERS["Architecture"].reconcile(all_graph[-1], all_graph, provider))
+    assert result["phase"] == "Valid" and not result["ready"]
+    assert result["reconciliationReason"] == "CompatibilityOnly"
+    assert provider.observe_count == provider.ensure_count == 0

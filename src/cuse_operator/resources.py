@@ -36,7 +36,8 @@ def _ref():
 RESOURCE_SPECS = {
     "IRCServer": _object({"id": _string(), "endpoint": _string()}),
     "WeeChat": _object({"id": _string(), "serverRef": _ref(), "nick": _string(), "mcp_endpoint": _string()}),
-    "Connector": _object({"id": _string(), "serverRef": _ref(), "nick": _string(), "mcp_endpoint": _string()}),
+    "Connector": _object({"id": _string(), "serverRef": _ref(), "nick": _string(), "mcp_endpoint": _string(),
+                          "weechatRef": _ref()}, ["id", "serverRef", "nick", "mcp_endpoint"]),
     "MCPClient": _object({"id": _string(), "endpoint": _string(), "connectorRefs": {
         "type": "array", "items": _ref(), "default": []}}, ["id", "endpoint"]),
     "PiHarness": _object({"id": _string(), "user_id": _string(), "weechatRef": _ref()}),
@@ -178,6 +179,10 @@ def validate_resource(kind: str, spec: dict, namespace: str,
                 server = resolve("IRCServer", resource_spec["serverRef"])
                 cls = WeeChat if resource_kind == "WeeChat" else Connector
                 obj = cls(identifier, server.id, resource_spec["nick"], resource_spec["mcp_endpoint"])
+                if resource_kind == "Connector" and "weechatRef" in resource_spec:
+                    weechat = resolve("WeeChat", resource_spec["weechatRef"])
+                    if (weechat.server_id, weechat.nick, weechat.mcp_endpoint) != (obj.server_id, obj.nick, obj.mcp_endpoint):
+                        raise _Problem("ReferenceMismatch")
             elif resource_kind == "MCPClient":
                 connectors = tuple(resolve("Connector", ref) for ref in resource_spec.get("connectorRefs", []))
                 obj = MCPClient(identifier, resource_spec["endpoint"], connectors)

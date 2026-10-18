@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "ircservers": [
+    {
+      "namespace": "default",
+      "name": "irc",
+      "image": "registry.example.invalid/cuse/inspircd@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "service_name": "irc",
+      "cluster_domain": "cluster.local",
+      "network_name": "ExampleNet",
+      "endpoint_mode": "internal-plaintext"
+    }
+  ],
+  "weechats": [
+    {
+      "namespace": "default",
+      "name": "weechat",
+      "image": "registry.example.invalid/cuse/weechat-mcp@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "workload_name": "weechat",
+      "cluster_domain": "cluster.local",
+      "http_port": 8080,
+      "bind_host": "0.0.0.0",
+      "allowed_hosts": ["weechat.default.svc.cluster.local:8080"],
+      "channels": ["#example"],
+      "storage_mode": "ephemeral",
+      "full_control": false,
+      "auth_secret": {"name": "example-weechat-bearer", "key": "token"}
+    }
+  ],
+  "mcpclients": [
+    {
+      "namespace": "default",
+      "name": "mcp-client",
+      "image": "registry.example.invalid/cuse/mcp-v8-bearer@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "workload_name": "mcp",
+      "cluster_domain": "cluster.local",
+      "http_port": 8080,
+      "bind_host": "0.0.0.0",
+      "allowed_hosts": ["mcp.default.svc.cluster.local:8080"],
+      "storage_mode": "ephemeral",
+      "endpoint_mode": "internal-unauthenticated",
+      "policies": {
+        "mcp_tools": {
+          "mode": "all",
+          "policies": [{"inline": "package mcp.tools\n\ndefault allow := false\n"}]
+        }
+      },
+      "secret_profiles": {
+        "connector-demo": {"name": "example-weechat-bearer", "key": "token"}
+      },
+      "supports_bearer_file": true
+    }
+  ],
+  "durable": {
+    "endpoint": "https://pi-control.example.invalid",
+    "token_file": "/var/run/secrets/cuse-control/token"
+  },
+  "readiness": [
+    {
+      "endpoint": "http://weechat.default.svc.cluster.local:8080/mcp",
+      "provider": "WeeChat",
+      "auth_mode": "bearer",
+      "token_file": "/var/run/secrets/cuse-readiness/weechat-token",
+      "allow_cluster_plaintext": true,
+      "cluster_domain": "cluster.local",
+      "timeout_seconds": 3,
+      "max_response_bytes": 262144
+    },
+    {
+      "endpoint": "http://mcp.default.svc.cluster.local:8080/mcp",
+      "provider": "MCPClient",
+      "auth_mode": "internal-unauthenticated",
+      "token_file": null,
+      "allow_cluster_plaintext": true,
+      "cluster_domain": "cluster.local",
+      "timeout_seconds": 3,
+      "max_response_bytes": 262144
+    }
+  ]
+}
